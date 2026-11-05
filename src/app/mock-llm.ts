@@ -62,7 +62,9 @@ export async function mockImageToText(coverDataUrl: string): Promise<VisionAutof
   try {
     payload = (await response.json()) as VisionAutofillResult | { error?: string };
   } catch {
-    throw new Error('The local Groq API did not return JSON. Make sure both local servers are running.');
+    throw new Error(
+      `The Groq API returned a non-JSON response (HTTP ${response.status}). Verify the Vercel function is deployed and check its logs.`,
+    );
   }
 
   if (!response.ok) {
