@@ -1,0 +1,50 @@
+@if (session.isLoggedIn()) {
+  <header class="sticky top-0 z-10 border-b border-stone-200 bg-white/90 backdrop-blur">
+    <nav class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+      <a routerLink="/discover" class="flex items-center gap-2 text-lg font-extrabold text-brand-700">
+        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2Zm0 0a2 2 0 0 0 2 2h13" />
+        </svg>
+        Community Library
+      </a>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <a
+          routerLink="/discover"
+          routerLinkActive="bg-brand-100 text-brand-700"
+          class="rounded-full px-4 py-2 text-sm font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900"
+        >Discover</a>
+        <a
+          routerLink="/add-book"
+          routerLinkActive="bg-brand-100 text-brand-700"
+          class="rounded-full px-4 py-2 text-sm font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900"
+        >Add a Book</a>
+        <a
+          routerLink="/library"
+          routerLinkActive="bg-brand-100 text-brand-700"
+          class="rounded-full px-4 py-2 text-sm font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900"
+        >My Library</a>
+        <a
+          routerLink="/wallet"
+          routerLinkActive="bg-brand-100 text-brand-700"
+          class="rounded-full px-4 py-2 text-sm font-semibold text-stone-600 transition hover:bg-stone-100 hover:text-stone-900"
+        >Wallet</a>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <span class="hidden max-w-[12rem] truncate text-sm text-stone-500 sm:block" [title]="session.activeEmail() ?? ''">
+          {{ session.activeEmail() }}
+        </span>
+        <button
+          type="button"
+          (click)="logout()"
+          class="rounded-full border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700 transition hover:border-stone-400 hover:bg-stone-50"
+        >Logout</button>
+      </div>
+    </nav>
+  </header>
+}
+
+<main>
+  <router-outlet />
+</main>

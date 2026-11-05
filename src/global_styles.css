@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-50: #f0f7f4;
+  --color-brand-100: #dcefe6;
+  --color-brand-200: #b9decd;
+  --color-brand-500: #3f9b7a;
+  --color-brand-600: #2f8066;
+  --color-brand-700: #276752;
+  --color-accent-100: #fdf1dc;
+  --color-accent-500: #e0962e;
+  --color-accent-700: #9a5f12;
+}
+
+html {
+  background-color: #fbfbf9;
+}
+
+body {
+  @apply font-sans text-stone-800 antialiased;
+}
+
+.wallet-hero {
+  background: linear-gradient(135deg, #203a32 0%, #315747 52%, #4a3528 100%);
+}
+
+.wallet-hero-card {
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.wallet-hero-orb {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.wallet-hero-orb-right {
+  right: -4rem;
+  top: -4rem;
+}
+
+.wallet-hero-orb-left {
+  bottom: -5rem;
+  left: -2.5rem;
+}
+
+.fade-in {
+  animation: fade-in 0.35s ease-out both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

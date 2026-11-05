@@ -1,0 +1,78 @@
+<section class="mx-auto max-w-6xl px-6 py-12">
+  <div class="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="text-sm font-bold uppercase tracking-widest text-brand-600">My Library</p>
+      <h1 class="mt-3 text-4xl font-extrabold leading-tight text-stone-900">Your shared books and requests</h1>
+    </div>
+    <a
+      routerLink="/add-book"
+      class="inline-flex items-center justify-center rounded-xl bg-brand-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
+    >Add a Book</a>
+  </div>
+
+  <section class="mt-14">
+    <h2 class="text-xl font-bold text-stone-900">Books you are sharing</h2>
+
+    @if (myBooks().length === 0) {
+      <div class="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white px-6 py-12 text-center">
+        <p class="text-stone-600">You have not shared any books yet.</p>
+        <a routerLink="/add-book" class="mt-3 inline-block text-sm font-bold text-brand-700 hover:underline">Add your first book</a>
+      </div>
+    } @else {
+      <div class="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        @for (book of myBooks(); track book.id) {
+          <app-book-card [book]="book">
+            <span
+              class="inline-block rounded-full px-3 py-1 text-xs font-semibold"
+              [class]="bookStatus(book).classes"
+            >{{ bookStatus(book).label }}</span>
+          </app-book-card>
+        }
+      </div>
+    }
+  </section>
+
+  <section class="mt-16">
+    <h2 class="text-xl font-bold text-stone-900">Pending Requests</h2>
+    <p class="mt-1 text-sm text-stone-500">Students who want to borrow your books. Accept a request to arrange delivery.</p>
+
+    @if (pendingRequests().length === 0) {
+      <p class="mt-6 rounded-2xl border border-stone-200 bg-white px-6 py-8 text-center text-stone-500">No pending requests right now.</p>
+    } @else {
+      <ul class="mt-6 divide-y divide-stone-100 overflow-hidden rounded-2xl border border-stone-200 bg-white">
+        @for (request of pendingRequests(); track request.id) {
+          <li class="fade-in flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <p class="truncate font-bold text-stone-900">{{ request.bookTitle }}</p>
+              <p class="truncate text-sm text-stone-500">
+                Requested by {{ request.requesterEmail }} on {{ request.createdAt | date: 'mediumDate' }}
+              </p>
+            </div>
+            <button
+              type="button"
+              (click)="accept(request)"
+              class="shrink-0 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
+            >Accept</button>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  @if (readyRequests().length > 0) {
+    <section class="mt-16">
+      <h2 class="text-xl font-bold text-stone-900">Ready for Delivery</h2>
+      <ul class="mt-6 divide-y divide-stone-100 overflow-hidden rounded-2xl border border-stone-200 bg-white">
+        @for (request of readyRequests(); track request.id) {
+          <li class="flex flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <p class="truncate font-bold text-stone-900">{{ request.bookTitle }}</p>
+              <p class="truncate text-sm text-stone-500">For {{ request.requesterEmail }}</p>
+            </div>
+            <span class="shrink-0 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">Ready for Delivery</span>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+</section>
