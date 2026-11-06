@@ -1,10 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { STORAGE_KEYS, readStorage, writeStorage } from './storage';
-const GMAIL_PATTERN = /^[^\s@]+@gmail\.com$/i;
-
-function isGmailAddress(email: string): boolean {
-  return GMAIL_PATTERN.test(email.trim());
-}
+import { STORAGE_KEYS, clearUserStorage, readStorage, writeStorage } from './storage';
 
 const SESSION_KEY = STORAGE_KEYS.activeUser;
 
@@ -20,9 +15,9 @@ export class SessionService {
     return;
   }
 
-  login(email: string, _password: string): string | null {
-    if (!isGmailAddress(email)) return 'Please use an address that ends in @gmail.com.';
-    const normalized = email.trim().toLowerCase();
+  login(userId: string, _password: string): string | null {
+    const normalized = userId.trim().toLowerCase();
+    if (!normalized) return 'Please enter a user ID.';
     writeStorage(SESSION_KEY, normalized);
     this.activeEmail.set(normalized);
     return null;
@@ -33,6 +28,8 @@ export class SessionService {
   }
 
   async logout(): Promise<void> {
+    const userId = this.activeEmail();
+    if (userId) clearUserStorage(userId);
     localStorage.removeItem(SESSION_KEY);
     this.activeEmail.set(null);
   }

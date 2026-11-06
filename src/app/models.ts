@@ -35,4 +35,6 @@ export interface BorrowRequest {
   ownerEmail: string;
   status: BorrowRequestStatus;
   createdAt: string;
+  pickupAt?: string;
+  approvedByUserId?: string;
 }

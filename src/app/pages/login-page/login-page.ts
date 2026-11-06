@@ -22,8 +22,8 @@ export class LoginPage {
     this.form.markAllAsTouched();
     if (this.form.invalid) return;
 
-    const { email, password } = this.form.getRawValue();
-    const error = this.session.login(email, password);
+    const { email: userId, password } = this.form.getRawValue();
+    const error = this.session.login(userId, password);
     if (error) return;
     this.router.navigateByUrl('/discover');
   }

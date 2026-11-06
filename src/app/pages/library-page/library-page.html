@@ -33,26 +33,42 @@
   </section>
 
   <section class="mt-16">
-    <h2 class="text-xl font-bold text-stone-900">Pending Requests</h2>
-    <p class="mt-1 text-sm text-stone-500">Students who want to borrow your books. Accept a request to arrange delivery.</p>
+    <h2 class="text-xl font-bold text-stone-900">Community borrow requests</h2>
+    <p class="mt-1 text-sm text-stone-500">Anyone signed in can approve a request and suggest a pickup date and time.</p>
 
     @if (pendingRequests().length === 0) {
       <p class="mt-6 rounded-2xl border border-stone-200 bg-white px-6 py-8 text-center text-stone-500">No pending requests right now.</p>
     } @else {
       <ul class="mt-6 divide-y divide-stone-100 overflow-hidden rounded-2xl border border-stone-200 bg-white">
         @for (request of pendingRequests(); track request.id) {
-          <li class="fade-in flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <li class="fade-in flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-end lg:justify-between">
             <div class="min-w-0">
               <p class="truncate font-bold text-stone-900">{{ request.bookTitle }}</p>
               <p class="truncate text-sm text-stone-500">
-                Requested by {{ request.requesterEmail }} on {{ request.createdAt | date: 'mediumDate' }}
+                Requested by {{ request.requesterEmail }} for {{ request.ownerEmail }}'s book on {{ request.createdAt | date: 'mediumDate' }}
               </p>
             </div>
-            <button
-              type="button"
-              (click)="accept(request)"
-              class="shrink-0 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
-            >Accept</button>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div>
+                <label [for]="'pickup-' + request.id" class="mb-1 block text-xs font-semibold text-stone-600">Pickup date and time</label>
+                <input
+                  [id]="'pickup-' + request.id"
+                  type="datetime-local"
+                  [value]="pickupTime(request)"
+                  [min]="minimumPickupTime"
+                  (change)="updatePickupTime(request, $event)"
+                  class="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
+                />
+                @if (pickupErrors()[request.id]; as error) {
+                  <p class="mt-1 text-xs text-red-600">{{ error }}</p>
+                }
+              </div>
+              <button
+                type="button"
+                (click)="approve(request)"
+                class="shrink-0 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
+              >Approve</button>
+            </div>
           </li>
         }
       </ul>
@@ -68,6 +84,14 @@
             <div class="min-w-0">
               <p class="truncate font-bold text-stone-900">{{ request.bookTitle }}</p>
               <p class="truncate text-sm text-stone-500">For {{ request.requesterEmail }}</p>
+              @if (request.pickupAt) {
+                <p class="mt-1 text-sm font-medium text-brand-700">
+                  Pickup: {{ request.pickupAt | date: 'fullDate' }} at {{ request.pickupAt | date: 'shortTime' }}
+                </p>
+              }
+              @if (request.approvedByUserId) {
+                <p class="text-sm text-stone-500">Approved by {{ request.approvedByUserId }}</p>
+              }
             </div>
             <span class="shrink-0 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">Ready for Delivery</span>
           </li>
@@ -75,4 +99,29 @@
       </ul>
     </section>
   }
+
+  <section class="mt-16">
+    <h2 class="text-xl font-bold text-stone-900">Requests you made</h2>
+    @if (myRequests().length === 0) {
+      <p class="mt-6 rounded-2xl border border-stone-200 bg-white px-6 py-8 text-center text-stone-500">You have not requested any books yet.</p>
+    } @else {
+      <ul class="mt-6 divide-y divide-stone-100 overflow-hidden rounded-2xl border border-stone-200 bg-white">
+        @for (request of myRequests(); track request.id) {
+          <li class="flex flex-col gap-2 px-6 py-5">
+            <p class="font-bold text-stone-900">{{ request.bookTitle }}</p>
+            @if (request.status === 'ready_for_delivery' && request.pickupAt) {
+              <p class="text-sm text-brand-700">
+                Please collect "{{ request.bookTitle }}" from {{ request.ownerEmail }}
+                on {{ request.pickupAt | date: 'fullDate' }} at {{ request.pickupAt | date: 'shortTime' }}.
+              </p>
+            } @else if (request.status === 'pending') {
+              <p class="text-sm text-stone-500">Your request is waiting for a community member to approve it.</p>
+            } @else if (request.status === 'ready_for_delivery') {
+              <p class="text-sm text-stone-500">Your request was approved. Contact {{ request.ownerEmail }} to arrange pickup.</p>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
 </section>

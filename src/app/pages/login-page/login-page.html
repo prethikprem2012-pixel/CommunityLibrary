@@ -17,21 +17,19 @@
       novalidate
     >
       <div class="space-y-2">
-        <label for="email" class="block text-sm font-semibold text-stone-700">Email</label>
+        <label for="email" class="block text-sm font-semibold text-stone-700">User ID</label>
         <input
           id="email"
-          type="email"
+          type="text"
           formControlName="email"
-          placeholder="you@gmail.com"
-          autocomplete="email"
+          placeholder="Enter a user ID"
+          autocomplete="username"
           class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-stone-900 placeholder:text-stone-400 transition focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
         />
         @if (form.controls.email.touched && form.controls.email.errors) {
           <p class="text-sm text-red-600">
             @if (form.controls.email.errors['required']) {
-              Please enter your email address.
-            } @else {
-              Please use an address that ends in @gmail.com.
+              Please enter a user ID.
             }
           </p>
         }
@@ -58,7 +56,7 @@
       >Login</button>
 
       <p class="text-center text-xs leading-relaxed text-stone-500">
-        This is a prototype. Any @gmail.com address and any password will work.
+        This is a prototype. Any user ID and password will work.
       </p>
     </form>
   </div>
