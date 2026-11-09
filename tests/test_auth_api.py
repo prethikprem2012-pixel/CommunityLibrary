@@ -187,11 +187,14 @@ def test_database_connection_prefers_vercel_postgres_url(
     captured: dict[str, Any] = {}
 
     class ConnectionContext:
-        def __enter__(self) -> str:
-            return "connection"
+        def __enter__(self) -> ConnectionContext:
+            return self
 
         def __exit__(self, *_: object) -> None:
             return None
+
+        def execute(self, query: str) -> None:
+            captured["setup_query"] = query
 
     def fake_connect(database_url: str, **kwargs: Any) -> ConnectionContext:
         captured["database_url"] = database_url
@@ -203,9 +206,11 @@ def test_database_connection_prefers_vercel_postgres_url(
     monkeypatch.setattr(psycopg, "connect", fake_connect)
 
     connection_generator = get_connection()
-    assert next(connection_generator) == "connection"
+    connection = next(connection_generator)
+    assert isinstance(connection, ConnectionContext)
     connection_generator.close()
 
     assert captured["database_url"] == "postgresql://vercel-neon.example/db"
     assert captured["row_factory"] is dict_row
-    assert captured["options"] == "-csearch_path=library"
+    assert captured["setup_query"] == "SET search_path TO library"
+    assert "options" not in captured

@@ -62,8 +62,8 @@ def get_connection() -> Generator[psycopg.Connection, None, None]:
         with psycopg.connect(
             database_url,
             row_factory=dict_row,
-            options="-csearch_path=library",
         ) as connection:
+            connection.execute("SET search_path TO library")
             yield connection
     except psycopg.Error as error:
         logger.exception("Authentication database operation failed.")
