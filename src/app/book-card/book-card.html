@@ -19,7 +19,7 @@
       [class]="config().badgeClass"
     >{{ book().genre }}</span>
     <p class="line-clamp-2 text-sm leading-relaxed text-stone-600">{{ book().description }}</p>
-    <p class="mt-auto pt-2 text-right text-xs font-medium text-stone-400">♡ A reader nearby</p>
+    <p class="mt-auto pt-2 text-right text-xs font-medium text-stone-500">Shared by {{ book().ownerName }}</p>
     <div class="pt-1">
       <ng-content />
     </div>

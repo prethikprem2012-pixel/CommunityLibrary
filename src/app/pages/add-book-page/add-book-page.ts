@@ -23,6 +23,8 @@ export class AddBookPage {
   protected readonly coverError = signal<string | null>(null);
   protected readonly autofilling = signal(false);
   protected readonly autofillMessage = signal<string | null>(null);
+  protected readonly saving = signal(false);
+  protected readonly saveError = signal<string | null>(null);
 
   protected readonly form = this.fb.nonNullable.group({
     title: ['', [Validators.required, Validators.maxLength(120)]],
@@ -69,7 +71,8 @@ export class AddBookPage {
     }
   }
 
-  protected saveBook(): void {
+  protected async saveBook(): Promise<void> {
+    if (this.saving()) return;
     this.form.markAllAsTouched();
 
     const cover = this.coverDataUrl();
@@ -82,7 +85,23 @@ export class AddBookPage {
     const { title, author, genre, description } = this.form.getRawValue();
     if (!genre) return;
 
-    this.library.addBook({ title: title.trim(), author: author.trim(), genre, description: description.trim(), coverUrl: cover }, email);
-    this.router.navigateByUrl('/library');
+    this.saving.set(true);
+    this.saveError.set(null);
+    try {
+      await this.library.addBook({
+        title: title.trim(),
+        author: author.trim(),
+        genre,
+        description: description.trim(),
+        coverUrl: cover,
+      });
+      await this.router.navigateByUrl('/library');
+    } catch (error) {
+      this.saveError.set(
+        error instanceof Error ? error.message : 'The book could not be saved. Please try again.',
+      );
+    } finally {
+      this.saving.set(false);
+    }
   }
 }

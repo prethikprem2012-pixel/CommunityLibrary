@@ -15,6 +15,7 @@ class FakeCursor:
     def __init__(self, connection: FakeConnection) -> None:
         self.connection = connection
         self.result: dict[str, Any] | None = None
+        self.results: list[dict[str, Any]] = []
 
     def __enter__(self) -> FakeCursor:
         return self
@@ -25,6 +26,7 @@ class FakeCursor:
     def execute(self, query: str, params: tuple[Any, ...] = ()) -> None:
         normalized = " ".join(query.lower().split())
         self.result = None
+        self.results = []
 
         if normalized.startswith("insert into users"):
             email, password_hash = params
@@ -33,6 +35,7 @@ class FakeCursor:
             user = {
                 "id": str(uuid.uuid4()),
                 "email": email,
+                "display_name": None,
                 "password_hash": password_hash,
                 "disabled_at": None,
             }
@@ -64,6 +67,53 @@ class FakeCursor:
                 )
                 if user:
                     self.result = {"id": user["id"], "email": user["email"]}
+        elif normalized.startswith("insert into books"):
+            owner_id, title, author, genre, description, cover_url = params
+            owner = next(
+                user
+                for user in self.connection.users.values()
+                if user["id"] == owner_id
+            )
+            book = {
+                "id": str(uuid.uuid4()),
+                "owner_id": owner_id,
+                "owner_name": owner["display_name"] or owner["email"],
+                "title": title,
+                "author": author,
+                "genre": genre,
+                "description": description,
+                "cover_url": cover_url,
+                "created_at": datetime.now(timezone.utc),
+                "availability_status": "available",
+                "availability_borrower_name": None,
+            }
+            self.connection.books.append(book)
+            self.result = book
+        elif normalized.startswith("select books.id::text as id"):
+            current_user_id = params[0] if params else None
+            matching_books = self.connection.books
+            if "books.owner_id <> %s" in normalized:
+                matching_books = [
+                    book for book in matching_books if book["owner_id"] != current_user_id
+                ]
+            elif "books.owner_id = %s" in normalized:
+                matching_books = [
+                    book for book in matching_books if book["owner_id"] == current_user_id
+                ]
+            self.results = []
+            for book in matching_books:
+                owner = next(
+                    user
+                    for user in self.connection.users.values()
+                    if user["id"] == book["owner_id"]
+                )
+                self.results.append({
+                    **book,
+                    "owner_name": owner["display_name"] or owner["email"],
+                    "owner_email": owner["email"],
+                })
+        elif normalized.startswith("select requests.id::text as id"):
+            self.results = []
         elif normalized.startswith("update user_sessions"):
             token_hash = params[0]
             session = self.connection.sessions.get(token_hash)
@@ -81,11 +131,15 @@ class FakeCursor:
     def fetchone(self) -> dict[str, Any] | None:
         return self.result
 
+    def fetchall(self) -> list[dict[str, Any]]:
+        return self.results
+
 
 class FakeConnection:
     def __init__(self) -> None:
         self.users: dict[str, dict[str, Any]] = {}
         self.sessions: dict[str, dict[str, Any]] = {}
+        self.books: list[dict[str, Any]] = []
 
     def cursor(self) -> FakeCursor:
         return FakeCursor(self)
@@ -181,6 +235,75 @@ def test_state_changing_auth_requests_reject_untrusted_origin(
     assert response.status_code == 403
 
 
+def test_library_routes_reuse_the_signed_in_session(
+    auth_client: tuple[TestClient, FakeConnection],
+) -> None:
+    client, _ = auth_client
+    credentials = {"email": "reader@example.com", "password": "correct horse battery"}
+    login = client.post(
+        "/api/auth/register",
+        headers=origin_header(),
+        json=credentials,
+    )
+
+    assert login.status_code == 201
+    assert "Path=/api" in login.headers["set-cookie"]
+    assert client.get("/api/books").json() == []
+    assert client.get("/api/requests").json() == []
+
+    missing_origin = client.post(
+        "/api/books",
+        json={
+            "title": "A Book",
+            "author": "An Author",
+            "genre": "Mystery",
+            "description": "A mystery.",
+            "coverUrl": "data:image/jpeg;base64,abc",
+        },
+    )
+    assert missing_origin.status_code == 403
+
+
+def test_books_are_owned_by_the_signed_in_user_and_scoped_for_discovery(
+    auth_client: tuple[TestClient, FakeConnection],
+) -> None:
+    client, connection = auth_client
+    credentials = {"email": "reader@example.com", "password": "correct horse battery"}
+    client.post("/api/auth/register", headers=origin_header(), json=credentials)
+
+    created = client.post(
+        "/api/books",
+        headers=origin_header(),
+        json={
+            "title": " A Book ",
+            "author": " An Author ",
+            "genre": "Mystery",
+            "description": " A mystery. ",
+            "coverUrl": "data:image/jpeg;base64,abc",
+        },
+    )
+
+    assert created.status_code == 201
+    book = created.json()
+    assert book["title"] == "A Book"
+    assert book["ownerEmail"] == "reader@example.com"
+    assert book["ownerName"] == "reader@example.com"
+    assert book["ownerId"] == next(iter(connection.users.values()))["id"]
+    assert book["availabilityStatus"] == "available"
+    assert book["availabilityBorrowerName"] is None
+    assert client.get("/api/books").json() == []
+    assert client.get("/api/books?scope=mine").json() == [book]
+    assert client.get("/api/books?scope=all").json() == [book]
+
+
+def test_library_routes_require_a_signed_in_session(
+    auth_client: tuple[TestClient, FakeConnection],
+) -> None:
+    client, _ = auth_client
+    assert client.get("/api/books").status_code == 401
+    assert client.get("/api/requests").status_code == 401
+
+
 def test_database_connection_prefers_vercel_postgres_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -203,6 +326,7 @@ def test_database_connection_prefers_vercel_postgres_url(
 
     monkeypatch.setenv("POSTGRES_URL", "postgresql://vercel-neon.example/db")
     monkeypatch.setenv("DATABASE_URL", "postgresql://local.example/db")
+    monkeypatch.delenv("DATABASE_SCHEMA", raising=False)
     monkeypatch.setattr(psycopg, "connect", fake_connect)
 
     connection_generator = get_connection()
@@ -214,3 +338,36 @@ def test_database_connection_prefers_vercel_postgres_url(
     assert captured["row_factory"] is dict_row
     assert captured["setup_query"] == "SET search_path TO library"
     assert "options" not in captured
+
+
+def test_database_connection_uses_configured_public_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class ConnectionContext:
+        def __enter__(self) -> ConnectionContext:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def execute(self, query: str) -> None:
+            captured["setup_query"] = query
+
+    def fake_connect(database_url: str, **kwargs: Any) -> ConnectionContext:
+        captured["database_url"] = database_url
+        captured.update(kwargs)
+        return ConnectionContext()
+
+    monkeypatch.delenv("POSTGRES_URL", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://local.example/db")
+    monkeypatch.setenv("DATABASE_SCHEMA", "public")
+    monkeypatch.setattr(psycopg, "connect", fake_connect)
+
+    connection_generator = get_connection()
+    connection = next(connection_generator)
+    assert isinstance(connection, ConnectionContext)
+    connection_generator.close()
+
+    assert captured["setup_query"] == "SET search_path TO public"

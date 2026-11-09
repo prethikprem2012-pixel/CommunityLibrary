@@ -20,6 +20,8 @@ export class DiscoverPage {
   private readonly library = inject(LibraryService);
   private readonly session = inject(SessionService);
   private readonly credits = inject(CreditsService);
+  protected readonly libraryError = this.library.errorMessage;
+  protected readonly libraryLoading = this.library.loading;
 
   protected readonly filterPills = FILTER_PILLS;
   protected readonly activeFilter = signal<CategoryFilter>(EVERYTHING_FILTER);
@@ -28,9 +30,10 @@ export class DiscoverPage {
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly recommendations = signal<BookRecommendation[] | null>(null);
   protected readonly notice = signal<string | null>(null);
+  protected readonly requestingBookIds = signal<Set<string>>(new Set());
 
   protected readonly availableBooks = computed(() =>
-    this.library.books().filter((book) => book.ownerEmail !== this.session.activeEmail()),
+    this.library.availableBooks(),
   );
 
   protected readonly filteredBooks = computed(() => {
@@ -40,15 +43,38 @@ export class DiscoverPage {
     return this.availableBooks().filter((book) => genres.includes(book.genre));
   });
 
-  protected readonly requestedBookIds = computed(
-    () =>
-      new Set(
-        this.library
-          .requests()
-          .filter((request) => request.requesterEmail === this.session.activeEmail())
-          .map((request) => request.bookId),
-      ),
-  );
+  protected readonly myRequestStatusByBook = computed(() => {
+    const statuses = new Map<string, string>();
+    for (const request of this.library.requests()) {
+      if (request.requesterEmail !== this.session.activeEmail()) continue;
+
+      if (request.status === 'pending') statuses.set(request.bookId, 'Request sent');
+      if (request.status === 'ready_for_delivery') {
+        statuses.set(request.bookId, 'Accepted - ready for pickup');
+      }
+      if (request.status === 'borrowed') {
+        statuses.set(
+          request.bookId,
+          request.returnStatus === 'pending_confirmation' ? 'Return requested' : 'Borrowed',
+        );
+      }
+    }
+    return statuses;
+  });
+
+  protected requestStatusLabel(bookId: string): string | null {
+    return this.myRequestStatusByBook().get(bookId) ?? null;
+  }
+
+  protected unavailableLabel(book: Book): string | null {
+    if (book.availabilityStatus === 'borrowed') {
+      return book.availabilityBorrowerName
+        ? `Borrowed by ${book.availabilityBorrowerName}`
+        : 'Currently borrowed';
+    }
+    if (book.availabilityStatus === 'reserved') return 'Reserved for pickup';
+    return null;
+  }
 
   protected readonly canAfford = computed(() => this.credits.balance() >= this.borrowCost);
 
@@ -75,6 +101,10 @@ export class DiscoverPage {
     this.errorMessage.set(null);
   }
 
+  protected reloadLibrary(): void {
+    void this.library.refresh();
+  }
+
   protected async search(): Promise<void> {
     const mood = this.query().trim();
     if (!mood || this.loading()) return;
@@ -91,17 +121,39 @@ export class DiscoverPage {
     }
   }
 
-  protected requestToBorrow(book: Book): void {
+  protected async requestToBorrow(book: Book): Promise<void> {
     const email = this.session.activeEmail();
     if (!email) return;
 
+    if (this.requestingBookIds().has(book.id)) return;
+    if (
+      book.availabilityStatus !== 'available' ||
+      this.requestStatusLabel(book.id) !== null
+    ) {
+      return;
+    }
     if (!this.canAfford()) {
       this.notice.set(`You need at least ${this.borrowCost} credits to request a book. Visit your Wallet to learn more.`);
       return;
     }
 
-    this.library.requestBook(book, email);
-    this.credits.chargeForBorrow(`Borrowed "${book.title}"`);
-    this.notice.set(`Request sent! ${this.borrowCost} credits were deducted from your wallet.`);
+    this.notice.set(null);
+    this.errorMessage.set(null);
+    this.requestingBookIds.update((ids) => new Set(ids).add(book.id));
+    try {
+      await this.library.requestBook(book);
+      this.credits.chargeForBorrow(`Borrowed "${book.title}"`);
+      this.notice.set(`Request sent! ${this.borrowCost} credits were deducted from your wallet.`);
+    } catch (error) {
+      this.errorMessage.set(
+        error instanceof Error ? error.message : 'The request could not be sent. Please try again.',
+      );
+    } finally {
+      this.requestingBookIds.update((ids) => {
+        const next = new Set(ids);
+        next.delete(book.id);
+        return next;
+      });
+    }
   }
 }

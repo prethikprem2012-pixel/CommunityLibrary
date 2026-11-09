@@ -10,15 +10,24 @@
     >Add a Book</a>
   </div>
 
+  @if (libraryError(); as message) {
+    <div role="alert" class="mt-8 flex flex-col items-center gap-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 sm:flex-row sm:justify-between">
+      <p>{{ message }}</p>
+      <button type="button" (click)="reloadLibrary()" class="shrink-0 font-semibold underline">Retry</button>
+    </div>
+  }
+  @if (loading()) {
+    <p class="mt-8 text-center text-sm text-stone-500">Loading your library...</p>
+  }
+
   <section class="mt-14">
     <h2 class="text-xl font-bold text-stone-900">Books you are sharing</h2>
-
-    @if (myBooks().length === 0) {
+    @if (!loading() && myBooks().length === 0) {
       <div class="mt-6 rounded-2xl border border-dashed border-stone-300 bg-white px-6 py-12 text-center">
         <p class="text-stone-600">You have not shared any books yet.</p>
         <a routerLink="/add-book" class="mt-3 inline-block text-sm font-bold text-brand-700 hover:underline">Add your first book</a>
       </div>
-    } @else {
+    } @else if (myBooks().length > 0) {
       <div class="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
         @for (book of myBooks(); track book.id) {
           <app-book-card [book]="book">
@@ -33,9 +42,8 @@
   </section>
 
   <section class="mt-16">
-    <h2 class="text-xl font-bold text-stone-900">Community borrow requests</h2>
-    <p class="mt-1 text-sm text-stone-500">Anyone signed in can approve a request and suggest a pickup date and time.</p>
-
+    <h2 class="text-xl font-bold text-stone-900">Requests for your books</h2>
+    <p class="mt-1 text-sm text-stone-500">Accept a request and choose a future pickup time, or decline it.</p>
     @if (pendingRequests().length === 0) {
       <p class="mt-6 rounded-2xl border border-stone-200 bg-white px-6 py-8 text-center text-stone-500">No pending requests right now.</p>
     } @else {
@@ -45,8 +53,11 @@
             <div class="min-w-0">
               <p class="truncate font-bold text-stone-900">{{ request.bookTitle }}</p>
               <p class="truncate text-sm text-stone-500">
-                Requested by {{ request.requesterEmail }} for {{ request.ownerEmail }}'s book on {{ request.createdAt | date: 'mediumDate' }}
+                Requested by {{ request.requesterEmail }} on {{ request.createdAt | date: 'mediumDate' }}
               </p>
+              @if (actionErrors()[request.id]; as error) {
+                <p role="alert" class="mt-2 text-sm text-red-600">{{ error }}</p>
+              }
             </div>
             <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
               <div>
@@ -65,9 +76,16 @@
               </div>
               <button
                 type="button"
+                [disabled]="workingRequestIds().has(request.id)"
                 (click)="approve(request)"
-                class="shrink-0 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
-              >Approve</button>
+                class="shrink-0 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200 disabled:opacity-60"
+              >Accept</button>
+              <button
+                type="button"
+                [disabled]="workingRequestIds().has(request.id)"
+                (click)="decline(request)"
+                class="shrink-0 rounded-xl border border-stone-300 px-5 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-50 disabled:opacity-60"
+              >Decline</button>
             </div>
           </li>
         }
@@ -77,23 +95,85 @@
 
   @if (readyRequests().length > 0) {
     <section class="mt-16">
-      <h2 class="text-xl font-bold text-stone-900">Ready for Delivery</h2>
+      <h2 class="text-xl font-bold text-stone-900">Ready for pickup</h2>
       <ul class="mt-6 divide-y divide-stone-100 overflow-hidden rounded-2xl border border-stone-200 bg-white">
         @for (request of readyRequests(); track request.id) {
           <li class="flex flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
             <div class="min-w-0">
               <p class="truncate font-bold text-stone-900">{{ request.bookTitle }}</p>
-              <p class="truncate text-sm text-stone-500">For {{ request.requesterEmail }}</p>
+              <p class="truncate text-sm text-stone-500">
+                {{ request.requesterEmail === sessionEmail() ? 'Owner: ' + request.ownerEmail : 'Borrower: ' + request.requesterEmail }}
+              </p>
               @if (request.pickupAt) {
                 <p class="mt-1 text-sm font-medium text-brand-700">
                   Pickup: {{ request.pickupAt | date: 'fullDate' }} at {{ request.pickupAt | date: 'shortTime' }}
                 </p>
               }
-              @if (request.approvedByUserId) {
-                <p class="text-sm text-stone-500">Approved by {{ request.approvedByUserId }}</p>
+              @if (actionErrors()[request.id]; as error) {
+                <p role="alert" class="mt-2 text-sm text-red-600">{{ error }}</p>
               }
             </div>
-            <span class="shrink-0 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">Ready for Delivery</span>
+            @if (request.requesterEmail === sessionEmail()) {
+              <div class="flex gap-2">
+                <button
+                  type="button"
+                  [disabled]="workingRequestIds().has(request.id)"
+                  (click)="confirmHandoff(request)"
+                  class="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+                >Confirm pickup</button>
+                <button
+                  type="button"
+                  [disabled]="workingRequestIds().has(request.id)"
+                  (click)="cancel(request)"
+                  class="rounded-xl border border-stone-300 px-5 py-2.5 text-sm font-bold text-stone-700 disabled:opacity-60"
+                >Cancel</button>
+              </div>
+            } @else {
+              <span class="shrink-0 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">Waiting for pickup</span>
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (borrowedRequests().length > 0) {
+    <section class="mt-16">
+      <h2 class="text-xl font-bold text-stone-900">Borrowed books and returns</h2>
+      <ul class="mt-6 divide-y divide-stone-100 overflow-hidden rounded-2xl border border-stone-200 bg-white">
+        @for (request of borrowedRequests(); track request.id) {
+          <li class="flex flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <p class="truncate font-bold text-stone-900">{{ request.bookTitle }}</p>
+              <p class="text-sm text-stone-500">
+                {{ request.requesterEmail === sessionEmail() ? 'Borrowed from ' + request.ownerEmail : 'Borrowed by ' + request.requesterEmail }}
+              </p>
+              @if (request.returnStatus === 'pending_confirmation') {
+                <p class="mt-1 text-sm font-medium text-accent-700">Return requested; waiting for the owner to confirm.</p>
+              }
+              @if (actionErrors()[request.id]; as error) {
+                <p role="alert" class="mt-2 text-sm text-red-600">{{ error }}</p>
+              }
+            </div>
+            @if (request.requesterEmail === sessionEmail() && !request.returnStatus) {
+              <button
+                type="button"
+                [disabled]="workingRequestIds().has(request.id)"
+                (click)="requestReturn(request)"
+                class="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+              >Request return</button>
+            } @else if (request.ownerEmail === sessionEmail() && request.returnStatus === 'pending_confirmation') {
+              <button
+                type="button"
+                [disabled]="workingRequestIds().has(request.id)"
+                (click)="acceptReturn(request)"
+                class="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+              >Confirm return</button>
+            } @else {
+              <span class="shrink-0 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+                {{ request.returnStatus === 'pending_confirmation' ? 'Return pending' : 'On loan' }}
+              </span>
+            }
           </li>
         }
       </ul>
@@ -107,17 +187,31 @@
     } @else {
       <ul class="mt-6 divide-y divide-stone-100 overflow-hidden rounded-2xl border border-stone-200 bg-white">
         @for (request of myRequests(); track request.id) {
-          <li class="flex flex-col gap-2 px-6 py-5">
-            <p class="font-bold text-stone-900">{{ request.bookTitle }}</p>
-            @if (request.status === 'ready_for_delivery' && request.pickupAt) {
-              <p class="text-sm text-brand-700">
-                Please collect "{{ request.bookTitle }}" from {{ request.ownerEmail }}
-                on {{ request.pickupAt | date: 'fullDate' }} at {{ request.pickupAt | date: 'shortTime' }}.
-              </p>
-            } @else if (request.status === 'pending') {
-              <p class="text-sm text-stone-500">Your request is waiting for a community member to approve it.</p>
-            } @else if (request.status === 'ready_for_delivery') {
-              <p class="text-sm text-stone-500">Your request was approved. Contact {{ request.ownerEmail }} to arrange pickup.</p>
+          <li class="flex flex-col gap-2 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="font-bold text-stone-900">{{ request.bookTitle }}</p>
+              @if (request.status === 'ready_for_delivery' && request.pickupAt) {
+                <p class="text-sm text-brand-700">
+                  Collect from {{ request.ownerEmail }} on {{ request.pickupAt | date: 'fullDate' }} at {{ request.pickupAt | date: 'shortTime' }}.
+                </p>
+              } @else if (request.status === 'pending') {
+                <p class="text-sm text-stone-500">Your request is waiting for the owner to respond.</p>
+              } @else if (request.status === 'borrowed') {
+                <p class="text-sm text-stone-500">You have confirmed pickup. Return the book when you are finished.</p>
+              } @else {
+                <p class="text-sm text-stone-500">Status: {{ request.status }}</p>
+              }
+              @if (actionErrors()[request.id]; as error) {
+                <p role="alert" class="mt-2 text-sm text-red-600">{{ error }}</p>
+              }
+            </div>
+            @if (request.status === 'pending' || request.status === 'ready_for_delivery') {
+              <button
+                type="button"
+                [disabled]="workingRequestIds().has(request.id)"
+                (click)="cancel(request)"
+                class="rounded-xl border border-stone-300 px-5 py-2.5 text-sm font-bold text-stone-700 disabled:opacity-60"
+              >Cancel request</button>
             }
           </li>
         }
