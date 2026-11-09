@@ -11,8 +11,12 @@ export class App {
   protected readonly session = inject(SessionService);
   private readonly router = inject(Router);
 
-  protected logout(): void {
-    this.session.logout();
-    this.router.navigateByUrl('/login');
+  protected async logout(): Promise<void> {
+    try {
+      await this.session.logout();
+      await this.router.navigateByUrl('/login');
+    } catch {
+      // SessionService exposes the failure through authError.
+    }
   }
 }

@@ -4,10 +4,16 @@ import { SessionService } from './session.service';
 
 export const authGuard: CanActivateFn = () => {
   const session = inject(SessionService);
-  return session.isLoggedIn() || inject(Router).createUrlTree(['/login']);
+  const router = inject(Router);
+  return session
+    .waitUntilReady()
+    .then(() => session.isLoggedIn() || router.createUrlTree(['/login']));
 };
 
 export const guestGuard: CanActivateFn = () => {
   const session = inject(SessionService);
-  return !session.isLoggedIn() || inject(Router).createUrlTree(['/discover']);
+  const router = inject(Router);
+  return session
+    .waitUntilReady()
+    .then(() => !session.isLoggedIn() || router.createUrlTree(['/discover']));
 };

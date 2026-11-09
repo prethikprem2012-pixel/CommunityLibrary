@@ -12,24 +12,48 @@
 
     <form
       [formGroup]="form"
-      (ngSubmit)="login()"
+      (ngSubmit)="submit()"
       class="space-y-6 rounded-3xl border border-stone-200 bg-white p-8 shadow-sm"
       novalidate
     >
+      <div class="flex rounded-xl bg-stone-100 p-1">
+        <button
+          type="button"
+          (click)="setMode('login')"
+          [attr.aria-pressed]="mode() === 'login'"
+          [class]="mode() === 'login' ? 'flex-1 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-stone-900 shadow-sm' : 'flex-1 rounded-lg px-3 py-2 text-sm font-semibold text-stone-500'"
+        >Login</button>
+        <button
+          type="button"
+          (click)="setMode('register')"
+          [attr.aria-pressed]="mode() === 'register'"
+          [class]="mode() === 'register' ? 'flex-1 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-stone-900 shadow-sm' : 'flex-1 rounded-lg px-3 py-2 text-sm font-semibold text-stone-500'"
+        >Create account</button>
+      </div>
+
+      @if (session.authError(); as message) {
+        <p role="alert" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{{ message }}</p>
+      }
+      @if (errorMessage(); as message) {
+        <p role="alert" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{{ message }}</p>
+      }
+
       <div class="space-y-2">
-        <label for="email" class="block text-sm font-semibold text-stone-700">User ID</label>
+        <label for="email" class="block text-sm font-semibold text-stone-700">Email address</label>
         <input
           id="email"
-          type="text"
+          type="email"
           formControlName="email"
-          placeholder="Enter a user ID"
-          autocomplete="username"
+          placeholder="you@example.com"
+          autocomplete="email"
           class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-stone-900 placeholder:text-stone-400 transition focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
         />
         @if (form.controls.email.touched && form.controls.email.errors) {
           <p class="text-sm text-red-600">
             @if (form.controls.email.errors['required']) {
-              Please enter a user ID.
+              Please enter your email address.
+            } @else if (form.controls.email.errors['email']) {
+              Enter a valid email address.
             }
           </p>
         }
@@ -42,22 +66,27 @@
           type="password"
           formControlName="password"
           placeholder="Enter your password"
-          autocomplete="current-password"
+          [autocomplete]="mode() === 'register' ? 'new-password' : 'current-password'"
           class="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-stone-900 placeholder:text-stone-400 transition focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100"
         />
         @if (form.controls.password.touched && form.controls.password.errors) {
-          <p class="text-sm text-red-600">Please enter your password.</p>
+          <p class="text-sm text-red-600">
+            @if (form.controls.password.errors['required']) {
+              Please enter your password.
+            } @else if (form.controls.password.errors['minlength']) {
+              Password must be at least 8 characters.
+            } @else if (form.controls.password.errors['maxlength']) {
+              Password must be no more than 128 characters.
+            }
+          </p>
         }
       </div>
 
       <button
         type="submit"
-        class="w-full rounded-xl bg-brand-600 px-4 py-3 text-base font-bold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
-      >Login</button>
-
-      <p class="text-center text-xs leading-relaxed text-stone-500">
-        This is a prototype. Any user ID and password will work.
-      </p>
+        [disabled]="submitting()"
+        class="w-full rounded-xl bg-brand-600 px-4 py-3 text-base font-bold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200 disabled:cursor-not-allowed disabled:bg-stone-300"
+      >{{ submitting() ? 'Please wait...' : mode() === 'register' ? 'Create account' : 'Login' }}</button>
     </form>
   </div>
 </div>
