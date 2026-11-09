@@ -46,6 +46,12 @@
   @if (errorMessage(); as message) {
     <p class="mx-auto mt-8 max-w-2xl rounded-xl bg-red-50 px-4 py-3 text-center text-sm text-red-700">{{ message }}</p>
   }
+  @if (libraryError(); as message) {
+    <div role="alert" class="mx-auto mt-8 flex max-w-2xl flex-col items-center gap-3 rounded-xl bg-red-50 px-4 py-3 text-center text-sm text-red-700 sm:flex-row sm:justify-between">
+      <p>{{ message }}</p>
+      <button type="button" (click)="reloadLibrary()" class="shrink-0 font-semibold underline">Retry</button>
+    </div>
+  }
 
   @if (notice(); as message) {
     <div class="mx-auto mt-8 max-w-2xl rounded-xl bg-brand-50 px-4 py-3 text-center text-sm text-brand-700">
@@ -56,7 +62,7 @@
     </div>
   }
 
-  @if (loading()) {
+  @if (loading() || libraryLoading()) {
     <div class="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
       @for (placeholder of [1, 2, 3, 4]; track placeholder) {
         <div class="h-96 animate-pulse rounded-2xl border border-stone-200 bg-white">
@@ -79,19 +85,25 @@
           @for (result of results; track result.book.id) {
             <app-book-card [book]="result.book">
               <p class="mb-4 rounded-xl bg-accent-100 px-3 py-2 text-xs leading-relaxed text-accent-700">{{ result.reason }}</p>
-              @if (requestedBookIds().has(result.book.id)) {
+              @if (requestStatusLabel(result.book.id); as label) {
                 <button
                   type="button"
                   disabled
                   class="w-full rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-700"
-                >Request sent</button>
+                >{{ label }}</button>
+              } @else if (unavailableLabel(result.book); as label) {
+                <button
+                  type="button"
+                  disabled
+                  class="w-full cursor-not-allowed rounded-xl border border-stone-200 bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-500"
+                >{{ label }}</button>
               } @else {
                 <button
                   type="button"
                   (click)="requestToBorrow(result.book)"
-                  [disabled]="!canAfford()"
+                  [disabled]="!canAfford() || requestingBookIds().has(result.book.id) || result.book.availabilityStatus !== 'available'"
                   class="w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200 disabled:cursor-not-allowed disabled:bg-stone-300"
-                >Request to Borrow ({{ borrowCost }} cr)</button>
+                >{{ requestingBookIds().has(result.book.id) ? 'Sending request...' : 'Request to Borrow (' + borrowCost + ' cr)' }}</button>
               }
             </app-book-card>
           }
@@ -115,19 +127,25 @@
         <div class="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           @for (book of filteredBooks(); track book.id) {
             <app-book-card [book]="book">
-              @if (requestedBookIds().has(book.id)) {
+              @if (requestStatusLabel(book.id); as label) {
                 <button
                   type="button"
                   disabled
                   class="w-full rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-700"
-                >Request sent</button>
+                >{{ label }}</button>
+              } @else if (unavailableLabel(book); as label) {
+                <button
+                  type="button"
+                  disabled
+                  class="w-full cursor-not-allowed rounded-xl border border-stone-200 bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-500"
+                >{{ label }}</button>
               } @else {
                 <button
                   type="button"
                   (click)="requestToBorrow(book)"
-                  [disabled]="!canAfford()"
+                  [disabled]="!canAfford() || requestingBookIds().has(book.id) || book.availabilityStatus !== 'available'"
                   class="w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200 disabled:cursor-not-allowed disabled:bg-stone-300"
-                >Request to Borrow ({{ borrowCost }} cr)</button>
+                >{{ requestingBookIds().has(book.id) ? 'Sending request...' : 'Request to Borrow (' + borrowCost + ' cr)' }}</button>
               }
             </app-book-card>
           }

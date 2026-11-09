@@ -1,4 +1,7 @@
 @if (session.isLoggedIn()) {
+  @if (session.authError(); as message) {
+    <p role="alert" class="bg-red-50 px-6 py-2 text-center text-sm text-red-700">{{ message }}</p>
+  }
   <header class="sticky top-0 z-10 border-b border-stone-200 bg-white/90 backdrop-blur">
     <nav class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
       <a routerLink="/discover" class="flex items-center gap-2 text-lg font-extrabold text-brand-700">

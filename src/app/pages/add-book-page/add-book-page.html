@@ -120,8 +120,12 @@
 
       <button
         type="submit"
-        class="w-full rounded-xl bg-brand-600 px-4 py-3 text-base font-bold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200"
-      >Add to Library</button>
+        [disabled]="saving()"
+        class="w-full rounded-xl bg-brand-600 px-4 py-3 text-base font-bold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-4 focus:ring-brand-200 disabled:cursor-wait disabled:opacity-60"
+      >{{ saving() ? 'Saving book...' : 'Add to Library' }}</button>
+      @if (saveError(); as message) {
+        <p role="alert" class="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{{ message }}</p>
+      }
     </form>
   </div>
 </section>

@@ -2,3 +2,15 @@
 dist
 node_modules
 .env
+.env.*
+!.env.example
+/myenv/
+/.venv/
+/venv/
+/myvenv/
+/supabase/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.py[cod]

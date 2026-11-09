@@ -4,6 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve --proxy-config proxy.conf.json",
+    "start:auth": "uvicorn --env-file .env app:app --reload --host 127.0.0.1 --port 8000",
     "start:api": "node --env-file=.env server/groq-proxy.mjs",
     "build": "ng build"
   },

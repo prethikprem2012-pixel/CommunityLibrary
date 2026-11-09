@@ -1,7 +1,9 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { SessionService } from '../../session.service';
+
+type AuthMode = 'login' | 'register';
 
 @Component({
   selector: 'app-login-page',
@@ -9,22 +11,43 @@ import { SessionService } from '../../session.service';
   templateUrl: './login-page.html',
 })
 export class LoginPage {
-  private readonly session = inject(SessionService);
+  protected readonly session = inject(SessionService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
+  protected readonly mode = signal<AuthMode>('login');
+  protected readonly submitting = signal(false);
+  protected readonly errorMessage = signal<string | null>(null);
 
   protected readonly form = this.fb.nonNullable.group({
-    email: ['', [Validators.required]],
-    password: ['', [Validators.required]],
+    email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],
+    password: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(128)]],
   });
 
-  protected login(): void {
-    this.form.markAllAsTouched();
-    if (this.form.invalid) return;
+  protected setMode(mode: AuthMode): void {
+    this.mode.set(mode);
+    this.errorMessage.set(null);
+    this.form.reset();
+  }
 
-    const { email: userId, password } = this.form.getRawValue();
-    const error = this.session.login(userId, password);
-    if (error) return;
-    this.router.navigateByUrl('/discover');
+  protected async submit(): Promise<void> {
+    this.form.markAllAsTouched();
+    if (this.form.invalid || this.submitting()) return;
+
+    this.submitting.set(true);
+    this.errorMessage.set(null);
+    try {
+      const { email, password } = this.form.getRawValue();
+      const error =
+        this.mode() === 'register'
+          ? await this.session.signUp(email, password)
+          : await this.session.login(email, password);
+      if (error) {
+        this.errorMessage.set(error);
+        return;
+      }
+      await this.router.navigateByUrl('/discover');
+    } finally {
+      this.submitting.set(false);
+    }
   }
 }

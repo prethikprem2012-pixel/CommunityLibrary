@@ -20,34 +20,55 @@ export class LibraryPage {
   private readonly library = inject(LibraryService);
   private readonly session = inject(SessionService);
 
+  protected readonly libraryError = this.library.errorMessage;
+  protected readonly loading = this.library.loading;
   protected readonly myBooks = computed(() =>
     this.library.books().filter((book) => book.ownerEmail === this.session.activeEmail()),
   );
-
   protected readonly pendingRequests = computed(() =>
     this.library
       .requests()
       .filter(
         (request) =>
-          request.status === 'pending' && request.requesterEmail !== this.session.activeEmail(),
+          request.ownerEmail === this.session.activeEmail() && request.status === 'pending',
       ),
   );
-
   protected readonly readyRequests = computed(() =>
     this.library.requests().filter(
       (request) =>
         request.status === 'ready_for_delivery' &&
         (request.ownerEmail === this.session.activeEmail() ||
-          request.approvedByUserId === this.session.activeEmail()),
+          request.requesterEmail === this.session.activeEmail()),
     ),
   );
-
+  protected readonly borrowedRequests = computed(() =>
+    this.library.requests().filter(
+      (request) =>
+        request.status === 'borrowed' &&
+        (request.ownerEmail === this.session.activeEmail() ||
+          request.requesterEmail === this.session.activeEmail()),
+    ),
+  );
   protected readonly myRequests = computed(() =>
-    this.library.requests().filter((request) => request.requesterEmail === this.session.activeEmail()),
+    this.library
+      .requests()
+      .filter((request) => request.requesterEmail === this.session.activeEmail()),
   );
   protected readonly pickupTimes = signal<Record<string, string>>({});
   protected readonly pickupErrors = signal<Record<string, string>>({});
-  protected readonly minimumPickupTime = this.toLocalDateTimeValue(new Date(Date.now() + 5 * 60 * 1000));
+  protected readonly actionErrors = signal<Record<string, string>>({});
+  protected readonly workingRequestIds = signal<Set<string>>(new Set());
+  protected readonly minimumPickupTime = this.toLocalDateTimeValue(
+    new Date(Date.now() + 5 * 60 * 1000),
+  );
+
+  protected sessionEmail(): string | null {
+    return this.session.activeEmail();
+  }
+
+  protected reloadLibrary(): void {
+    void this.library.refresh();
+  }
 
   private readonly defaultPickupTime = (() => {
     const tomorrow = new Date();
@@ -58,8 +79,8 @@ export class LibraryPage {
 
   protected bookStatus(book: Book): BookStatus {
     const requests = this.library.requests().filter((request) => request.bookId === book.id);
-    if (requests.some((request) => request.status === 'ready_for_delivery')) {
-      return { label: 'Ready for delivery', classes: 'bg-brand-600 text-white' };
+    if (requests.some((request) => request.status === 'ready_for_delivery' || request.status === 'borrowed')) {
+      return { label: 'On loan', classes: 'bg-brand-600 text-white' };
     }
     if (requests.some((request) => request.status === 'pending')) {
       return { label: 'Requested', classes: 'bg-accent-100 text-accent-700' };
@@ -77,7 +98,7 @@ export class LibraryPage {
     this.pickupErrors.update((errors) => ({ ...errors, [request.id]: '' }));
   }
 
-  protected approve(request: BorrowRequest): void {
+  protected async approve(request: BorrowRequest): Promise<void> {
     const pickupAt = new Date(this.pickupTime(request));
     if (!Number.isFinite(pickupAt.getTime()) || pickupAt.getTime() <= Date.now()) {
       this.pickupErrors.update((errors) => ({
@@ -86,10 +107,56 @@ export class LibraryPage {
       }));
       return;
     }
+    await this.performAction(request.id, () =>
+      this.library.updateRequest(request.id, 'accept', pickupAt.toISOString()),
+    );
+  }
 
-    const userId = this.session.activeEmail();
-    if (!userId) return;
-    this.library.acceptRequest(request.id, pickupAt.toISOString(), userId);
+  protected async decline(request: BorrowRequest): Promise<void> {
+    await this.performAction(request.id, () =>
+      this.library.updateRequest(request.id, 'decline'),
+    );
+  }
+
+  protected async cancel(request: BorrowRequest): Promise<void> {
+    await this.performAction(request.id, () =>
+      this.library.updateRequest(request.id, 'cancel'),
+    );
+  }
+
+  protected async confirmHandoff(request: BorrowRequest): Promise<void> {
+    await this.performAction(request.id, () =>
+      this.library.updateRequest(request.id, 'confirm_handoff'),
+    );
+  }
+
+  protected async requestReturn(request: BorrowRequest): Promise<void> {
+    await this.performAction(request.id, () => this.library.requestReturn(request.id));
+  }
+
+  protected async acceptReturn(request: BorrowRequest): Promise<void> {
+    await this.performAction(request.id, () => this.library.acceptReturn(request.id));
+  }
+
+  private async performAction(requestId: string, action: () => Promise<unknown>): Promise<void> {
+    if (this.workingRequestIds().has(requestId)) return;
+    this.actionErrors.update((errors) => ({ ...errors, [requestId]: '' }));
+    this.workingRequestIds.update((ids) => new Set(ids).add(requestId));
+    try {
+      await action();
+    } catch (error) {
+      this.actionErrors.update((errors) => ({
+        ...errors,
+        [requestId]:
+          error instanceof Error ? error.message : 'The request could not be updated.',
+      }));
+    } finally {
+      this.workingRequestIds.update((ids) => {
+        const next = new Set(ids);
+        next.delete(requestId);
+        return next;
+      });
+    }
   }
 
   private toLocalDateTimeValue(date: Date): string {
